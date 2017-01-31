@@ -1,5 +1,5 @@
 ---
-layout: post
+layout: page
 title: A concise tutorial on recommender systems
 ---
 
@@ -157,16 +157,15 @@ The closest to one this metric is, the closest $$Person_i$$ is to $$Person_j$$ b
 ```python
 def euclidean_similarity(person1, person2):
 
-	common_ranked_items = [itm for itm in data[person1] \
-		if itm in data[person2]]
+    common_ranked_items = [itm for itm in data[person1] \
+        if itm in data[person2]]
 		
-	rankings = [(data[person1][itm], data[person2][itm]) \
-		for itm in common_ranked_items]
+    rankings = [(data[person1][itm], data[person2][itm]) \
+        for itm in common_ranked_items]
 		
-	distance = [pow(rank[0] - rank[1], 2) \
-		for rank in rankings]
+    distance = [pow(rank[0] - rank[1], 2) for rank in rankings]
 
-	return 1 / (1 + sum(distance))
+    return 1 / (1 + sum(distance))
 ```
 
 Once we have the data and the algorithm, we can analyse it. The major flaw of this algorithm, and in general of Euclidean distance based comparisons, is that if the whole distribution of rankings from a person tend to be higher than those from other person (a person is inclined to give higher scores than the other), this metric would classify them as disimilar without regard the correlation between two people. There can still be perfect correlation if the differences between their rankings is consistent. While a clever algorithm would classify them as similar, our *Euclidean* based algorithm, will say that two people are very different because one is consistently harsher then the other one. That behaviour depends on the application of the recommender system (thus far, we have not created a recommender system; we're just computing similarity).
@@ -174,5 +173,163 @@ Once we have the data and the algorithm, we can analyse it. The major flaw of th
 ### Pearson correlation coefficient
 
 
-In statistics, the Pearson product-moment correlation coefficient (/ˈpɪərsən/) (sometimes referred to as the PPMCC or PCC or Pearson's r) is a measure of the linear dependence (correlation) between two variables X and Y. It has a value between +1 and −1 inclusive, where 1 is total positive linear correlation, 0 is no linear correlation, and −1 is total negative linear correlation. 
+In statistics, the Pearson correlation coefficient is a measure of the linear dependence or correlation between two variables X and Y. It has a value between `+1` and `−1` inclusive, where 1 is total positive linear correlation, 0 is no linear correlation, and −1 is total negative linear correlation. In the case of recommender systems, we're supposed to figure it out how related two people are based on the items they both have ranked. The Pearson correlation coefficient (PCC) is better understood in this case as a measure of the slope of two datasets related by a single line (we're not taking into account dimensions). The derivation and the formula itself are harder to find and understand, but by using this method, we're eliminating the weight of `harshness` while measuring the relation between two people.
+
+The PCC algorithm, requires two datasets as inputs, those datasets don't come from how people ranked the items, but they come from the common ranked items between two people. PCC help us to find the similarity of a pair of users. Rather than considering the distance between the rankings on two products, we can consider the correlation between the users ratings. 
+
+To clarify the concept of correlation, we include a new dataset and some charts. The dataset, includes few ratings of some remarkable computer scientists to some CS books.
+
+![_config.yml]({{ site.baseurl }}/images/posts/2016-12-19-Collaborative-Filtering/dataset.png)
+
+In order to understand how related are two people, we proceed by plotting their preferences (treating each book as a point, whose coordinates are determined by the rating on this item by both users). Once we have that specific plot, we do need to find the best fit straight line over those points. Finding such a line, requires knowledge of linear regression, a topic that's out of the scope of this tutorial. While finding the best fit straight line, is not as trivial as it seems, finding the PCC depends just on the data that we already have. This best fit line serves us to explain the concept.
+
+![_config.yml]({{ site.baseurl }}/images/posts/2016-12-19-Collaborative-Filtering/positive.png)
+
+The plot shows the 2-dimensional space defined by the ratings of `Ullman` and `Carmack, as well as the best fit straight line. The positive slope of the line, shows a positive correlation between those points, then, the PCC for Ullman and Carmack is positive.
+
+![_config.yml]({{ site.baseurl }}/images/posts/2016-12-19-Collaborative-Filtering/negative.png)
+
+The last plot, shows a negative correlation between `Navarro` and `Norvig`.
+
+If we have one dataset $$\{x_1, x_2, ..., x_n\}$$ containing $$n$$ elements, and another dataset $$\{y_1, y_2, ..., y_n\}$$ containing $$n$$ elements, the formula for the sample PCC is:
+
+$$r = \frac{\sum_{i = 1}^{n}(x_i - \bar{x})(y_i - \bar{y})}{\sqrt{\sum_{i = 1}^{n}(x_i-\bar{x})^2} \times \sqrt{\sum_{i = 1}^{n}(y_i-\bar{y})^2}}$$
+
+A little algebraic manipulation, yield us to the following formula:
+
+$$r = \frac{n\sum{x_iy_i} - \sum x_i\sum y_i}{\sqrt{\left(n\sum x_i^2 - \left( \sum x_i \right) ^ 2\right) \left(n\sum y_i^2 - \left( \sum y_i \right) ^ 2\right)}}$$
+
+This formula, let us write a program to compute the PCC between two people.
+
+```python
+import math
+
+def pearson_similarity(person1, person2):
+
+    common_ranked_items = [itm for itm in data[person1] \
+        if itm in data[person2]]
+
+    n = len(common_ranked_items)
+
+    s1 = sum([data[person1][item] \
+        for item in common_ranked_items])
+    s2 = sum([data[person2][item] \
+        for item in common_ranked_items])
+
+    ss1 = sum([pow(data[person1][item], 2) \
+        for item in common_ranked_items])
+    ss2 = sum([pow(data[person2][item], 2) \
+        for item in common_ranked_items])
+
+    ps = sum([data[person1][item] * data[person2][item] \
+        for item in common_ranked_items])
+
+    num = n * ps - (s1 * s2)
+
+    den = math.sqrt((n * ss1 - math.pow(s1, 2)) \
+        * (n * ss2 - math.pow(s2, 2)))
+
+    return (num / den) if den != 0 else 0
+
+```
+
+Both similarity measures allow us to figure it out how similar two people are. The logic behind a recommender system, is to measure everyone against a given person and find the closest people to that specific person, we can do that by taking a group of the people for whom the distance is small, or the similarity is high. 
+
+By using this approach, we're trying to predict what's going to be the rating if our person rates a group of products he has not rate yet. One of the most used approach to this problem, is to take the ratings of all the other users and multiply how similar they are to the specific person by the rating that they gave to the product. If the product is very popular, and it has been rated by many people, it would have a greater weight, to normalise this behaviour, we do need to divide that weight by the sum of all the similarities for the people that have rated the product. The following function implements this approach.
+
+```python
+def recommend(person, bound, similarity):
+    # Getting the closest people to person, the number of 
+    # elements included in scores, is given by the arg bound
+    scores = [(similarity(person, other), other) \
+        for other in data if other != person]
+
+    scores.sort()
+    scores.reverse()
+    scores = scores[0:bound]
+
+    recomms = {}
+
+    for sim, other in scores:
+        ranked = data[other]
+	    
+        for itm in ranked:
+            if itm not in data[person]:
+                weight = sim * ranked[itm]
+
+                if itm in recomms:
+                    s, weights = recomms[itm]
+                    recomms[itm] = \
+                        (s + sim, weights + [weight])
+                else:
+                    recomms[itm] = (sim, [weight])
+
+    for r in recomms:
+        sim, item = recomms[r]
+        recomms[r] = sum(item) / sim
+
+    return recomms
+```
+
+Given a person included in the index (`data`), a bound (that is maximum number of items to recomend), and a function to measure the similarity between people (`euclidean_similarity`, or `pearson_similarity`), this function gives an estimate on how the person would rate the item according to how its similar people rate the item. As an example:
+
+```python
+>>> recommend("Alan Perlis", 5, euclidean_similarity)
+
+{
+    'Formal methods': 4.2884705749419645,
+    'Algorithms': 4.70479765409595, 
+    'Computation': 4.39,
+    'Concurrency': 4.461820809248555, 
+    'Programming language theory': 4.347195972640145
+}
+
+>>> recommend("Marvin Minsky", 5, pearson_similarity)
+
+{
+    'Formal methods': 4.580731197362096, 
+    'Concurrency': 4.242230900860542, 
+    'Software engineering': 3.899999999999996, 
+    'Programming language theory': 3.4798793670332437
+}
+
+>>> recommend("Marvin Minsky", 5, euclidean_similarity)
+
+{
+    'Programming language theory': 4.286011590485815, 
+    'Databases': 2.8, 
+    'Software engineering': 4.272502290210142, 
+    'Concurrency': 4.374054188023107, 
+    'Formal methods': 3.7690266719570977
+}
+```
+
+While `Algorithms` and `Concurrency` are perfect topics to recommend to `Alan Perlis`, or at least that was what our algorithm found, we should keep `Marvin Minsky` far from the `Databases` item. There are an strange phenomenon here, depending on the similarity measure, `Marvin Minsky` seems to like a lot or dislike a little bit the `Programming language theory` and `Formal methods` items. By looking for the `scores` variable while inspecting the code if you call `recommend("Marvin Minsky", 5)`, you can tell that `Robin Milner` and `John McCarthy` are the closest to `Marvin Minsky`, while both `Robin Milner` and `John McCarthy` are very different from each other; and also `Robin Milner` tends to rate a little bit harsher than `John McCarthy`. That insight clearly taught us that we do need to compare both measures depending on the nature of our data, the election of `bound` also affects this kind of strange recommendations.
+
+Data exploration, and wrangling comes as significant factors while implementing a production recommender system. The more data it can process, the better recommendations we can give our users. While recommender systems theory is much broader, recommender systems is a perfecto canvas to explore machine learning ideas, algorithms, etc. not only by the nature of the data, but because of the ease visualising and comparing the results.
+
+### Resources on Recommender Systems
+1. [Programming Collective Intelligence](https://www.amazon.com/Programming-Collective-Intelligence-Building-Applications/dp/0596529325), written by Toby Segaran. Its first chapter includes a math lightweight approach to this amazing topic. It includes an explanation on the two similarity measures explained here, and an approach to match items instead of users, it also includes "big" datasets to play with. The whole book explores machine learning related ideas using a programming-first approach.
+
+<div style="text-align:center"><img src ="https://images-na.ssl-images-amazon.com/images/I/51LolW3DugL._SX379_BO1,204,203,200_.jpg" height="400"/></div>
+
+2. [Recommender Systems: An Introduction](https://www.amazon.com/Recommender-Systems-Introduction-Dietmar-Jannach/dp/0521493366), an academic reference whose first chapter explain with more detail and riguor the material discussed here. Besides math it includes design hints and practical usage of recommender systems. It's the standard textbook on the topic.
+
+<div style="text-align:center"><img src ="https://images-na.ssl-images-amazon.com/images/I/51tO1%2BENLWL._SX312_BO1,204,203,200_.jpg" height="400"/></div>
+
+3. [Recommender Systems Specialization](https://www.coursera.org/specializations/recommender-systems), a whole Coursera Specialization on the topic.
+
+4. The following links provide useful information on deployment of real recommender systems.
+
+	* [How Recommendation System Works](http://edlab.tc.columbia.edu/index.php?q=node/5781), a review of companies using recommender systems.
+	* [Amazon.com Recommendations, Item-to-Item Collaborative Filtering](https://www.cs.umd.edu/~samir/498/Amazon-Recommendations.pdf), a popular-science description of Amazon recommender system written by the engineer that was behind it.
+	* [How does the Amazon Recommendation feature work?](http://stackoverflow.com/questions/2323768/how-does-the-amazon-recommendation-feature-work), some hints on recommender system design and production-ready artefacts (reading the links related here requires a lot of mathematical maturity and a greedy research enthusiasm).
+	* [How Amazon's Recommendation System works and What it might be missing](https://www.linkedin.com/pulse/how-amazons-recommendation-system-works-what-might-we-vick-sahita)
+	* [Now Anyone Can Tap the AI Behind Amazon’s Recommendations](https://www.wired.com/2015/04/now-anyone-can-tap-ai-behind-amazons-recommendations/)
+	* [How does the Netflix movie recommendation algorithm work?](https://www.quora.com/How-does-the-Netflix-movie-recommendation-algorithm-work)
+
+
+
+
+
 
