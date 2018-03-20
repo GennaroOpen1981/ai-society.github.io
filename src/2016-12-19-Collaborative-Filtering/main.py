@@ -151,7 +151,7 @@ def recommend(person, bound, similarity=pearson_similarity):
 	scores.reverse()
 	scores = scores[0:bound]
 
-	print scores
+	print (scores)
 
 	recomms = {}
 
